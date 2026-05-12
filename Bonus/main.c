@@ -116,11 +116,12 @@ int	main(int argc, char *argv[]) {
 		return (1);
 
 	// ARP spoofing...
-	if (run_arp_spoofing(interface_index) < 0)
+	if (args.attack_type == REQUEST_SPOOFING && arp_request_spoof(interface_index) < 0)
+		return (1);
+	else if (arp_reply_spoof(interface_index) < 0)
 		return (1);
 
 	printf("ARP spoofing attempt completed. Please check the target system to verify if the attack was successful.\n");
 	printf("The attack may be unsuccessful if the target system is not vulnerable to ARP spoofing, or if there is a race condition.\n");
-	printf("For more reliability, you can use other atack techniques in the bonus part.\n");
 	return (0);
 }
