@@ -89,4 +89,7 @@ int			arp_reply_spoof(int interface_index);
 int			arp_request_spoof(int interface_index);
 int			find_interface();
 
+// http proxy
+int			proxy_http();
+
 #endif

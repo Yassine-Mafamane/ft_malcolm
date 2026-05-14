@@ -188,6 +188,7 @@ int	arp_reply_spoof(int interface_index) {
 
 	target_addr = create_sockaddr(interface_index, args.tar_mac, ETHER_ADDR_LEN);
 
+	// Pre craft the ARP reply packet to reduce the time between receiving the ARP request and sending the reply.
 	craft_arp_reply(&reply);
 
 	// Listen for ARP requests and process the first one we receive.

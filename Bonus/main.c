@@ -125,5 +125,12 @@ int	main(int argc, char *argv[]) {
 
 	printf("ARP spoofing attempt completed. Please check the target system to verify if the attack was successful.\n");
 	printf("The attack may be unsuccessful if the target system is not vulnerable to ARP spoofing, or if there is a race condition.\n");
+
+	// HTTP proxy
+	if (args.proxy) {
+		if (proxy_http() < 0)
+			return (1);
+	}
+
 	return (0);
 }
