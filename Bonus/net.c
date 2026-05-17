@@ -35,7 +35,7 @@ struct sockaddr_ll	create_sockaddr(int interface_index, uint8_t *dest_mac, uint8
 	return (addr);
 }
 
-int	get_interace_index(struct ifaddrs *ifaddr, const char *interface_name) {
+int	get_interface_index(struct ifaddrs *ifaddr, const char *interface_name) {
 
 	struct ifaddrs	*ifa;
 	bool			inet_found = false;
@@ -77,6 +77,27 @@ int	get_interace_index(struct ifaddrs *ifaddr, const char *interface_name) {
 	return (-1);
 }
 
+int	get_interface_info(struct ifaddrs	*ifaddr, const char *interface_name) {
+	struct ifaddrs	*ifa;
+
+
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+
+		if (ifa->ifa_addr == NULL)
+			continue;
+
+		if (!strcmp(interface_name, ifa->ifa_name) && ifa->ifa_addr->sa_family == AF_INET && ifa->ifa_broadaddr != NULL && ifa->ifa_netmask != NULL) {
+			memcpy(args.if_addr, (void *)&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr, sizeof(args.if_addr));
+			memcpy(args.if_netmask, (void *)&((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr, sizeof(args.if_netmask));
+			memcpy(args.if_broadaddr, (void *)&((struct sockaddr_in *)ifa->ifa_broadaddr)->sin_addr, sizeof(args.if_broadaddr));
+			return (0);
+		}
+	}
+
+	fprintf(stderr, "Could not find interface info for %s\n", interface_name);
+	return (-1);
+}
+
 int	list_interfaces() {
 	struct ifaddrs *ifaddr, *ifa;
 
@@ -106,10 +127,15 @@ int	list_interfaces() {
 		return (-1);
 	}
 
-	int interface_index = get_interace_index(ifaddr, interface_name);
-	
-	freeifaddrs(ifaddr);
+	int interface_index = get_interface_index(ifaddr, interface_name);
 
+	if (interface_index < 0 || get_interface_info(ifaddr, interface_name) < 0) {
+		fprintf(stderr, "Failed to get interface info\n");
+		freeifaddrs(ifaddr);
+		return (-1);
+	}
+
+	freeifaddrs(ifaddr);
 	return (interface_index);
 }
 
@@ -148,7 +174,7 @@ int	find_interface()
 		verbose_log ("Interface Mask: %d.%d.%d.%d\n", if_mask[0], if_mask[1], if_mask[2], if_mask[3]);
 		verbose_log("\n");
 
-		int interface_index = get_interace_index(ifaddr, ifa->ifa_name);
+		int interface_index = get_interface_index(ifaddr, ifa->ifa_name);
 
 		if (interface_index < 0)
 			goto interface_error;
