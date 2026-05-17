@@ -38,19 +38,11 @@ struct sockaddr_ll	create_sockaddr(int interface_index, uint8_t *dest_mac, uint8
 int	get_interface_index(struct ifaddrs *ifaddr, const char *interface_name) {
 
 	struct ifaddrs	*ifa;
-	bool			inet_found = false;
 
 	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
 
 		if (ifa->ifa_addr == NULL)
 			continue;
-
-		if (!strcmp(interface_name, ifa->ifa_name) && ifa->ifa_addr->sa_family == AF_INET && ifa->ifa_broadaddr != NULL && ifa->ifa_netmask != NULL) {
-			memcpy(args.if_addr, (void *)&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr, sizeof(args.if_addr));
-			memcpy(args.if_netmask, (void *)&((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr, sizeof(args.if_netmask));
-			memcpy(args.if_broadaddr, (void *)&((struct sockaddr_in *)ifa->ifa_broadaddr)->sin_addr, sizeof(args.if_broadaddr));
-			inet_found = true;
-		}
 
 		if (!strcmp(interface_name, ifa->ifa_name) && ifa->ifa_addr->sa_family == AF_PACKET) {
 
@@ -65,10 +57,6 @@ int	get_interface_index(struct ifaddrs *ifaddr, const char *interface_name) {
 			// Debug
 			// printf("Interface index: %u\n", index);
 
-			if (!inet_found) {
-				fprintf(stderr, "Could not find interface info for %s\n", interface_name);
-				return (-1);
-			}
 			return (index);
 		}
 	}
@@ -77,9 +65,8 @@ int	get_interface_index(struct ifaddrs *ifaddr, const char *interface_name) {
 	return (-1);
 }
 
-int	get_interface_info(struct ifaddrs	*ifaddr, const char *interface_name) {
+int	get_interface_info(struct ifaddrs *ifaddr, const char *interface_name) {
 	struct ifaddrs	*ifa;
-
 
 	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
 
