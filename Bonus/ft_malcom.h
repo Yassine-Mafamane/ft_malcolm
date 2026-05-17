@@ -2,6 +2,7 @@
 # define FT_MALCOM_H
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdbool.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -12,6 +13,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
+#include <stdarg.h>
 
 
 # define ARES_OP_REQUEST    1
@@ -36,6 +38,7 @@ typedef enum e_AttackType {
 	REPLY_FLOODING,				// Option -f
 	REPLY_SPOOFING_SOLICITED,	// Option -s
 	REQUEST_SPOOFING,			// Option -r
+	INTERFACE_WIDE_SPOOFING		// Option -i
 } t_AttackType;
 
 typedef struct s_ArpPacket {
@@ -60,10 +63,14 @@ typedef struct s_Arguments {
 	uint8_t			src_mac[ETHER_ADDR_LEN];	// Source hardware address (MAC)
 	uint8_t			tar_ip[IPV4_ADDR_LEN];		// Target protocol address (IP v4). Data written in network byte order.
 	uint8_t			tar_mac[ETHER_ADDR_LEN];	// Target hardware address (MAC)
+
 	t_AttackType	attack_type;				// Attack type (spoofing, flooding...)
 	bool			verbose;					// Verbose mode
 	bool			proxy;						// Proxy after spoofing (Only 1 http request/reply will be proxied, then the program will exit)
-	short			proxy_listen_port;			// Port to use for the proxy (default : 8080)
+
+	uint8_t 		if_addr[IPV4_ADDR_LEN];			// Network address of interface chosen.
+  	uint8_t 		if_netmask[IPV4_ADDR_LEN];		// Netmask of interface chosen.
+	uint8_t 		if_broadaddr[IPV4_ADDR_LEN];	// Broadcast address of interface chosen.
 } t_Arguments;
 
 
@@ -85,11 +92,17 @@ int			parse_ip(char *str, uint8_t *ip);
 
 
 // net
+bool		in_same_network(uint8_t *ip1, uint8_t *ip2, uint8_t *mask, int len);
 int			arp_reply_spoof(int interface_index);
 int			arp_request_spoof(int interface_index);
 int			find_interface();
+int			interface_spoof(int interface_index);
+int			list_interfaces();
 
 // http proxy
 int			proxy_http();
+
+// verbose log
+void    verbose_log(const char *s, ...);
 
 #endif

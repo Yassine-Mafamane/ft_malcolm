@@ -1,4 +1,3 @@
-
 #include "../ft_malcom.h"
 
 // Convert a single hex character to its value (0-15)
@@ -62,4 +61,14 @@ int parse_ip(char *str, uint8_t *ip)
 		return (1);
 	}
 	return (0);
+}
+
+void    verbose_log(const char *s, ...)
+{
+    if (!args.verbose)
+        return;
+    va_list ap;
+    va_start(ap, s);
+    vprintf(s, ap);
+    va_end(ap);
 }

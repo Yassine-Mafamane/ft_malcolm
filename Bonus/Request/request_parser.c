@@ -14,14 +14,14 @@ int parse_request(char * buff, t_ArpPacket * request) {
     buff += sizeof(uint16_t);
 
     memcpy(&(request->hln), buff, sizeof(uint8_t));
-    if (request->hln > ETHER_ADDR_LEN) {
+    if (request->hln != ETHER_ADDR_LEN) {
         fprintf(stderr, "Invalid hardware address length in ARP request\n");
         return 1;
     }
     buff += sizeof(uint8_t);
 
     memcpy(&(request->pln), buff, sizeof(uint8_t));
-    if (request->pln > IPV4_ADDR_LEN) {
+    if (request->pln != IPV4_ADDR_LEN) {
         fprintf(stderr, "Invalid protocol address length in ARP request\n");
         return 1;
     }

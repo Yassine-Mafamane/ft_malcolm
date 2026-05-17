@@ -1,6 +1,6 @@
 FLAGS = -Wall -Wextra -Werror
 
-SRCS = main.c net.c utils/parse_addr.c Request/request_parser.c http_proxy.c
+SRCS = main.c net.c utils/utils.c Request/request_parser.c http_proxy.c
 OBJS = $(SRCS:.c=.o)
 NAME = ft_malcom
 

