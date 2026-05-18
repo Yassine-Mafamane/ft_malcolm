@@ -1,4 +1,4 @@
-#include "ft_malcom.h"
+#include "ft_malcolm.h"
 
 t_Arguments	args;
 
@@ -88,9 +88,25 @@ int	parse_addr(char	*addr) {
 	return (0);
 }
 
+void	print_help() {
+	printf("Usage: ft_malcolm [options] <source IP> <source MAC> <target IP> <target MAC>\n");
+	printf("Options:\n");
+	printf("  -h : Display this help message and exit\n");
+	printf("  -f : ARP reply flooding\n");
+	printf("  -s : ARP reply spoofing (solicited). Usefull in case target do not accept unsolicited replies.\n");
+	printf("  -r : ARP request spoofing\n");
+	printf("  -i : Interface-wide ARP spoofing\n");
+	printf("  -v : Verbose mode (print parsed arguments)\n");
+	printf("  -p : Proxy HTTP communication after spoofing (Only 1 http request/reply will be proxied, then the program will exit)\n");
+}
+
 int	parse_option(char *option) {
 
-	if (strcmp(option, "-f") == 0) {
+	if (strcmp(option, "-h") == 0) {
+		print_help();
+		exit(0); //
+	}
+	else if (strcmp(option, "-f") == 0) {
 		args.attack_type = REPLY_FLOODING;
 	} else if (strcmp(option, "-s") == 0) {
 		args.attack_type = REPLY_SPOOFING_SOLICITED;

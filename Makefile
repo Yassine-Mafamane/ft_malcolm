@@ -1,13 +1,17 @@
 FLAGS = -Wall -Wextra -Werror
 
-SRCS = main.c net.c utils/parse_addr.c Request/request_parser.c
+SRCS = srcs/main.c srcs/net.c srcs/utils/utils.c srcs/Request/request_parser.c srcs/http_proxy.c
 OBJS = $(SRCS:.c=.o)
-NAME = ft_malcom
+
+NAME = ft_malcolm
 
 all: $(NAME)
 
-$(NAME): $(OBJS) ####################### relink
+$(NAME): $(OBJS)
 	@cc $(FLAGS) $(OBJS) -o $(NAME)
+
+srcs/%.o: srcs/%.c srcs/ft_malcolm.h
+	cc $(FLAGS) -c $< -o $@
 
 clean:
 	@rm -f $(OBJS)

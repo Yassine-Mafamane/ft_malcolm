@@ -1,5 +1,5 @@
-#ifndef FT_MALCOM_H
-# define FT_MALCOM_H
+#ifndef ft_malcolm_H
+# define ft_malcolm_H
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -75,10 +75,8 @@ typedef struct s_Arguments {
 
 
 // Global variable to store the program arguments
-#ifndef ARGS
-# define ARGS
 extern t_Arguments	args;
-#endif
+
 
 // Request
 int			parse_request(char * buff, t_ArpPacket * data);
@@ -86,7 +84,6 @@ void		show_request_info(t_ArpPacket * data);
 
 
 // utils
-static int	hex_to_val(char c);
 int			parse_mac(const char *str, uint8_t mac[6]);
 int			parse_ip(char *str, uint8_t *ip);
 
